@@ -235,6 +235,11 @@ def setup_vectordb_for_domain(domain_name: str):
             print("-" * 50)
 
     if not os.environ.get("POSTGRES_PASSWORD"):
+        if not sys.stdin.isatty():
+            raise RuntimeError(
+                "POSTGRES_PASSWORD must be supplied to a non-interactive vector setup job; "
+                "refusing to prompt."
+            )
         os.environ["POSTGRES_PASSWORD"] = getpass.getpass("Enter PostgreSQL password: ")
 
     # Embed the documents into one collection per available provider. Each
