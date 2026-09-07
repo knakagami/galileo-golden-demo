@@ -1,8 +1,5 @@
 streamlit
 galileo
-agent-control-sdk[galileo]>=8.0.0
-agent-control-evaluators>=8.0.0
-agent-control-evaluator-galileo>=8.0.0
 yfinance
 alpha-vantage
 chromadb
