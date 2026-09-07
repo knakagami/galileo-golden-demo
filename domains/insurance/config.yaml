@@ -3,8 +3,8 @@ domain:
   description: "insurance assistant for online help and customer account support"
 
 galileo:
-  project: "galileo-demo"
-  log_stream: "insurance"
+  project: "knakagami-project"
+  log_stream: "golden-demo-app"
 
 # UI configuration
 ui:
@@ -21,7 +21,7 @@ model:
   additional_models:
     - "mistral"
   hosted_default_model: "gpt-4o"
-  bedrock_default_model: "mistral.ministral-3-14b-instruct"
+  bedrock_default_model: "us.amazon.nova-lite-v1:0"
   bedrock_additional_models:
     - "mistral.ministral-3-8b-instruct"
   hosted_additional_models:
