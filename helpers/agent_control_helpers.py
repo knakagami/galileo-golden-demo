@@ -7,9 +7,39 @@ import json
 import os
 from typing import Any, Callable, Optional
 
-import agent_control
-from agent_control import ControlSteerError, ControlViolationError, control
-from agent_control.settings import configure_settings
+try:
+    import agent_control
+    from agent_control import ControlSteerError, ControlViolationError, control
+    from agent_control.settings import configure_settings
+except ImportError:
+    # The public PyPI package does not contain the private Agent Control SDK
+    # versions used by the upstream demo. Collector-only EKS mode deliberately
+    # disables the control-plane integration, so keep the chat/tool decorators
+    # as no-ops when that optional dependency is unavailable.
+    class ControlSteerError(Exception):
+        steering_context = None
+        message = ""
+
+    class ControlViolationError(Exception):
+        pass
+
+    def control(*args, **kwargs):
+        if args and callable(args[0]) and len(args) == 1 and not kwargs:
+            return args[0]
+
+        def decorator(func):
+            return func
+
+        return decorator
+
+    class _AgentControlUnavailable:
+        def init(self, *args, **kwargs):
+            return None
+
+    agent_control = _AgentControlUnavailable()
+
+    def configure_settings(*args, **kwargs):
+        return None
 from galileo.log_streams import get_log_stream
 
 _initialized = False
