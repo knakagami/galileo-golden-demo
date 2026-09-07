@@ -16,6 +16,8 @@ def _load_secrets_if_needed():
     Load secrets from .streamlit/secrets.toml if environment variables are not set.
     Only loads API key and console URL (not domain-specific settings).
     """
+    collector_mode = os.environ.get("GALILEO_TELEMETRY_MODE", "collector").strip().lower() == "collector"
+
     # Check if already loaded
     if os.environ.get("GALILEO_API_KEY") and os.environ.get("GALILEO_CONSOLE_URL"):
         return
@@ -30,7 +32,7 @@ def _load_secrets_if_needed():
         secrets = toml.load(secrets_path)
         
         # Set only the non-domain-specific environment variables
-        if "galileo_api_key" in secrets and not os.environ.get("GALILEO_API_KEY"):
+        if not collector_mode and "galileo_api_key" in secrets and not os.environ.get("GALILEO_API_KEY"):
             os.environ["GALILEO_API_KEY"] = secrets["galileo_api_key"]
         
         if "galileo_console_url" in secrets and not os.environ.get("GALILEO_CONSOLE_URL"):
@@ -98,6 +100,11 @@ def get_galileo_api_key() -> str:
     Raises:
         ValueError: If GALILEO_API_KEY is not set
     """
+    if os.environ.get("GALILEO_TELEMETRY_MODE", "collector").strip().lower() == "collector":
+        raise ValueError(
+            "Direct Galileo API access is disabled in Collector telemetry mode."
+        )
+
     _load_secrets_if_needed()
     
     api_key = os.environ.get("GALILEO_API_KEY")
@@ -160,6 +167,11 @@ def create_galileo_logger(project_name: str, log_stream: str):
     attempt to create a project that already exists but is not returned by lookup
     (e.g. a project in the org you do not have collaborator access to).
     """
+    if os.environ.get("GALILEO_TELEMETRY_MODE", "collector").strip().lower() == "collector":
+        from helpers.collector_telemetry import create_collector_telemetry
+
+        return create_collector_telemetry(project_name, log_stream)
+
     from galileo import GalileoLogger
 
     project_id = get_galileo_project_id(project_name)
