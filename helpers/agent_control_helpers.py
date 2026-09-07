@@ -399,6 +399,10 @@ def init_agent_control(
     """Initialize or refresh Agent Control for the current Galileo logger/session."""
     global _initialized
 
+    if os.environ.get("GALILEO_TELEMETRY_MODE", "collector").strip().lower() == "collector":
+        print("ℹ️ Agent Control API integration is disabled in Collector telemetry mode")
+        return False
+
     if galileo_logger is None:
         print("⚠️ Agent Control not initialized (no Galileo logger)")
         return False
