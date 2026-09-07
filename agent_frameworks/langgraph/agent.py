@@ -42,6 +42,7 @@ from helpers.agent_control_helpers import (
     extract_steering_instructions,
     build_steer_correction_prompt,
 )
+from helpers.collector_telemetry import collector_telemetry_enabled
 
 # Streamlit import (optional - for UI integration)
 try:
@@ -224,13 +225,15 @@ class LangGraphAgent(BaseAgent):
         # Build callbacks list with Galileo (always enabled).
         # Pass the per-session logger so each browser tab writes to its own Galileo session.
         # Attach LangGraph spans to a manually started trace (see _process_query_async).
-        callbacks = [
-            GalileoCallback(
-                galileo_logger=galileo_logger,
-                start_new_trace=False,
-                flush_on_chain_end=False,
+        callbacks = []
+        if galileo_logger is not None and not collector_telemetry_enabled():
+            callbacks.append(
+                GalileoCallback(
+                    galileo_logger=galileo_logger,
+                    start_new_trace=False,
+                    flush_on_chain_end=False,
+                )
             )
-        ]
         
         self.config = {"configurable": {"thread_id": self.session_id}, "callbacks": callbacks}
     
