@@ -19,9 +19,10 @@ def main():
     try:
         # Run streamlit
         subprocess.run([
-            sys.executable, "-m", "streamlit", "run", "streamlit_app.py",
+            sys.executable, "-m", "streamlit", "run", "app.py",
             "--server.port", "8501",
-            "--server.address", "localhost"
+            "--server.address", "0.0.0.0",
+            "--server.headless", "true",
         ], check=True)
     except KeyboardInterrupt:
         print("\n👋 Goodbye!")
