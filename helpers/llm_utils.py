@@ -16,11 +16,11 @@ LLMProvider = Literal["local", "hosted", "bedrock"]
 
 DEFAULT_LOCAL_CHAT_MODEL = "gemma4"
 DEFAULT_HOSTED_CHAT_MODEL = "gpt-4o"
-DEFAULT_BEDROCK_CHAT_MODEL = "mistral.ministral-3-14b-instruct"
+DEFAULT_BEDROCK_CHAT_MODEL = "us.amazon.nova-lite-v1:0"
 DEFAULT_LOCAL_EMBEDDING_MODEL = "nomic-embed-text"
 DEFAULT_HOSTED_EMBEDDING_MODEL = "text-embedding-3-large"
 DEFAULT_BEDROCK_EMBEDDING_MODEL = "amazon.titan-embed-text-v2:0"
-DEFAULT_BEDROCK_REGION = "us-east-1"
+DEFAULT_BEDROCK_REGION = "us-east-2"
 # nomic-embed-text (Ollama) produces 768-dim vectors; OpenAI must match for pgvector.
 DEFAULT_EMBEDDING_DIMENSIONS = 768
 
@@ -151,18 +151,38 @@ def openai_api_key_configured() -> bool:
     return bool(key)
 
 
+def get_bedrock_auth_mode() -> str:
+    """Return ``iam`` for the boto3 chain or legacy ``bearer`` mode."""
+    return os.environ.get("BEDROCK_AUTH_MODE", "bearer").strip().lower() or "bearer"
+
+
 def bedrock_configured() -> bool:
-    """True if a Bedrock API key (bearer token) is set (a region always resolves)."""
+    """Return whether the selected Bedrock authentication mode is configured.
+
+    IAM mode intentionally does not require ``AWS_BEARER_TOKEN_BEDROCK``. The
+    LangChain Bedrock clients use boto3's default credential chain, including
+    the web-identity credentials supplied by IRSA in EKS.
+    """
+    if get_bedrock_auth_mode() == "iam":
+        return True
     return bool(os.environ.get("AWS_BEARER_TOKEN_BEDROCK", "").strip())
 
 
 def ensure_bedrock_credentials() -> None:
-    """Raise with setup instructions if the Bedrock bearer token is not configured."""
+    """Validate the selected Bedrock mode without requiring a bearer token in IAM mode."""
+    if get_bedrock_auth_mode() == "iam":
+        import boto3
+
+        session = boto3.Session(region_name=get_bedrock_region())
+        if session.get_credentials() is None:
+            raise ValueError(
+                "No AWS credentials found for Bedrock IAM mode. In EKS, attach "
+                "the demo ServiceAccount to its IRSA role."
+            )
+        return
     if not bedrock_configured():
         raise ValueError(
-            "AWS_BEARER_TOKEN_BEDROCK is not set. Add a real bedrock_api_key to "
-            ".streamlit/secrets.toml (and optionally aws_region, default us-east-1) "
-            "to use the Bedrock (AWS) provider."
+            "AWS_BEARER_TOKEN_BEDROCK is not set for bearer authentication mode."
         )
 
 
