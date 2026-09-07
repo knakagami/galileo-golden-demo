@@ -1,0 +1,15 @@
+.git
+.gitignore
+.env
+.env.*
+.streamlit/secrets.toml
+__pycache__
+*.py[cod]
+.venv
+venv
+node_modules
+.pytest_cache
+.mypy_cache
+.ruff_cache
+tests
+docs
