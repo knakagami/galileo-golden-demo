@@ -105,7 +105,12 @@ def setup_environment(domain_name: Optional[str] = None, domain_config: Optional
         agent_control_url = _derive_agent_control_url(
             console_url, secrets.get("agent_control_url", "")
         )
-        galileo_api_key = secrets.get("galileo_api_key", "")
+        telemetry_mode = str(
+            secrets.get(
+                "telemetry_mode",
+                os.environ.get("GALILEO_TELEMETRY_MODE", "collector"),
+            )
+        ).strip().lower() or "collector"
         
         # Base environment variables (always set)
         env_vars = {
@@ -128,19 +133,18 @@ def setup_environment(domain_name: Optional[str] = None, domain_config: Optional
             "OPENAI_EMBEDDING_DIMENSIONS": str(
                 secrets.get("openai_embedding_dimensions", 768)
             ),
-            "AWS_BEARER_TOKEN_BEDROCK": secrets.get("bedrock_api_key", ""),
-            "AWS_REGION": secrets.get("aws_region", "us-east-1"),
+            "BEDROCK_AUTH_MODE": secrets.get("bedrock_auth_mode", "bearer"),
+            "AWS_BEARER_TOKEN_BEDROCK": "",
+            "AWS_REGION": secrets.get("aws_region", "us-east-2"),
             "BEDROCK_DEFAULT_CHAT_MODEL": secrets.get(
-                "bedrock_default_chat_model", "mistral.ministral-3-14b-instruct"
+                "bedrock_default_chat_model", "us.amazon.nova-lite-v1:0"
             ),
             "BEDROCK_EMBEDDING_MODEL": secrets.get(
                 "bedrock_embedding_model", "amazon.titan-embed-text-v2:0"
             ),
-            "GALILEO_API_KEY": galileo_api_key,
             "GALILEO_API_URL": galileo_api_url,
             "GALILEO_CONSOLE_URL": console_url,
             "AGENT_CONTROL_URL": agent_control_url,
-            "AGENT_CONTROL_API_KEY": galileo_api_key,
             "AGENT_CONTROL_AGENT_NAME": secrets.get("agent_control_agent_name", ""),
             "AGENT_CONTROL_API_KEY_HEADER": secrets.get("agent_control_api_key_header", "Galileo-API-Key"),
             "AGENT_CONTROL_RUNTIME_AUTH_MODE": secrets.get("agent_control_runtime_auth_mode", "jwt"),
@@ -151,15 +155,29 @@ def setup_environment(domain_name: Optional[str] = None, domain_config: Optional
             "POSTGRES_USER": secrets.get("postgres_user", "postgres"),
             "POSTGRES_PASSWORD": secrets.get("postgres_password", ""),
             "POSTGRES_DB": secrets.get("postgres_db", "vectordb"),
-            "ENVIRONMENT": secrets.get("environment", "local")
+            "ENVIRONMENT": secrets.get("environment", "demo")
         }
+
+        env_vars["GALILEO_TELEMETRY_MODE"] = telemetry_mode
+        env_vars["COLLECTOR_OTLP_ENDPOINT"] = secrets.get(
+            "collector_otlp_endpoint",
+            "http://splunk-otel-collector-agent.dify.svc.cluster.local:4318/v1/traces",
+        )
         
         # If domain is specified, add domain-specific settings
         if domain_name:
-            project_name = get_domain_project_name(domain_name, domain_config)
+            project_name = os.environ.get(
+                "GALILEO_PROJECT_OVERRIDE",
+                secrets.get("galileo_project", "")
+                or get_domain_project_name(domain_name, domain_config),
+            )
             log_stream = "default"
             if domain_config and "galileo" in domain_config and "log_stream" in domain_config["galileo"]:
                 log_stream = domain_config["galileo"]["log_stream"]
+            log_stream = os.environ.get(
+                "GALILEO_LOG_STREAM_OVERRIDE",
+                secrets.get("galileo_log_stream", log_stream),
+            )
             
             env_vars["GALILEO_PROJECT"] = project_name
             env_vars["GALILEO_LOG_STREAM"] = log_stream
