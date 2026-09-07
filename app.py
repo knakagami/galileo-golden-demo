@@ -32,6 +32,7 @@ from helpers.galileo_api_helpers import (
 )
 from helpers.agent_control_helpers import init_agent_control
 from helpers.hallucination_helpers import log_hallucination_for_domain
+from helpers.collector_telemetry import collector_telemetry_enabled
 from experiments.experiment_helpers import (
     get_all_datasets,
     get_dataset_by_name,
@@ -390,6 +391,13 @@ def render_experiments_page(domain_name: str, domain_config, agent_factory):
         domain_config: DomainConfig object from DomainManager
         agent_factory: AgentFactory instance
     """
+    if collector_telemetry_enabled():
+        st.info(
+            "Experiments are disabled in Collector-only telemetry mode. "
+            "This demo sends traces through the existing OpenTelemetry Collector."
+        )
+        return
+
     st.title("🧪 Experiments")
     st.markdown("Create and run experiments to evaluate your agent's performance.")
     
@@ -860,7 +868,12 @@ def multi_domain_agent_app(domain_name: str):
             project_name = os.environ.get("GALILEO_PROJECT", "")
             log_stream_name = os.environ.get("GALILEO_LOG_STREAM", "")
 
-            if project_name and log_stream_name:
+            if collector_telemetry_enabled():
+                st.info(
+                    "OTLP telemetry: existing Collector → Galileo "
+                    f"({project_name}/{log_stream_name})"
+                )
+            elif project_name and log_stream_name:
                 try:
                     console_url = get_galileo_app_url()
                     project_id = get_galileo_project_id(project_name)
@@ -886,19 +899,25 @@ def multi_domain_agent_app(domain_name: str):
                 domain_name, domain_config_key
             )
 
-            # Agent Control guardrails (always enabled; configured server-side)
+            # Agent Control requires a Galileo control-plane credential. The
+            # Collector-only mode deliberately keeps that credential out of the
+            # app Pod, so present the actual demo mode instead of claiming it is
+            # enabled.
             st.divider()
             st.subheader("🛡️ Agent Control")
             st.checkbox(
                 "Guardrails enabled",
-                value=True,
+                value=not collector_telemetry_enabled(),
                 disabled=True,
-                help="Guardrails are always enabled in this demo.",
+                help="Unavailable in Collector-only telemetry mode.",
             )
-            st.caption(
-                "Guardrails are controlled on the Agent Control server. "
-                "Manage controls through the Console UI (or API/SDK)."
-            )
+            if collector_telemetry_enabled():
+                st.caption("Disabled: this deployment does not contain a Galileo control-plane token.")
+            else:
+                st.caption(
+                    "Guardrails are controlled on the Agent Control server. "
+                    "Manage controls through the Console UI (or API/SDK)."
+                )
             
             # Add Chaos Engineering section
             st.divider()
@@ -1063,17 +1082,22 @@ def render_chat_page(
     if galileo_logger_key not in st.session_state:
         full_config = st.session_state.get(f"full_domain_config_{domain_name}", {})
         galileo_config = full_config.get("galileo", {})
-        project_name = galileo_config.get("project") or f"galileo-demo-{domain_name}"
-        log_stream = galileo_config.get("log_stream", "default")
+        project_name = os.environ.get(
+            "GALILEO_PROJECT", galileo_config.get("project") or f"galileo-demo-{domain_name}"
+        )
+        log_stream = os.environ.get(
+            "GALILEO_LOG_STREAM", galileo_config.get("log_stream", "default")
+        )
         try:
             galileo_logger = create_galileo_logger(project_name, log_stream)
-            galileo_logger.enable_agent_control()
-            init_agent_control(
-                galileo_logger,
-                project_name=project_name,
-                log_stream=log_stream,
-                agent_description=f"{domain_name.title()} demo agent",
-            )
+            if not collector_telemetry_enabled():
+                galileo_logger.enable_agent_control()
+                init_agent_control(
+                    galileo_logger,
+                    project_name=project_name,
+                    log_stream=log_stream,
+                    agent_description=f"{domain_name.title()} demo agent",
+                )
             st.session_state[galileo_logger_key] = galileo_logger
         except Exception as e:
             print(f"⚠️ Failed to create per-session GalileoLogger: {e}")
